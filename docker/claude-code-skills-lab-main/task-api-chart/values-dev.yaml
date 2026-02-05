@@ -1,0 +1,107 @@
+# =============================================================================
+# DEVELOPMENT ENVIRONMENT VALUES
+# =============================================================================
+# Usage: helm install task-api ./task-api-chart -f values-dev.yaml -n dev
+#
+# Development characteristics:
+# - Single replica for fast iteration
+# - Verbose logging for debugging
+# - Minimal resources for cost efficiency
+# - Disabled health checks for faster startup
+# - Always pull latest images
+# =============================================================================
+
+# Environment identifier (used by helpers)
+environment: "development"
+
+# Single replica - not HA, for testing only
+replicaCount: 1
+
+# Image configuration - always pull latest for development
+image:
+  repository: your-registry/task-api
+  pullPolicy: Always
+  tag: "latest"
+
+imagePullSecrets: []  # No secrets needed for public images in dev
+
+# Minimal resources for cost efficiency
+resources:
+  limits:
+    cpu: 250m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# Development environment variables - verbose logging
+env:
+  - name: DATABASE_URL
+    value: "postgresql://localhost:5432/tasks_dev"
+  - name: LOG_LEVEL
+    value: "DEBUG"  # Verbose logging for development
+  - name: API_TIMEOUT
+    value: "60"  # Longer timeout for debugging
+  - name: DEBUG_MODE
+    value: "true"
+  - name: ENABLE_CORS
+    value: "true"
+  - name: RELOAD_ON_CHANGE
+    value: "true"
+
+# Health checks disabled for faster iteration
+livenessProbe: {}
+readinessProbe: {}
+
+# Autoscaling disabled in development
+autoscaling:
+  enabled: false
+
+# Ingress disabled - use port-forward instead
+ingress:
+  enabled: false
+
+podAnnotations:
+  environment: "dev"
+
+# Minimal security for development ease
+podSecurityContext: {}
+securityContext: {}
+
+# =============================================================================
+# DEPENDENCIES - DEVELOPMENT
+# =============================================================================
+
+# PostgreSQL - enabled with minimal resources
+postgresql:
+  enabled: true
+  auth:
+    username: taskapi_dev
+    password: devpass123
+    database: tasks_dev
+  primary:
+    persistence:
+      enabled: false  # No persistence in dev for faster teardown
+    resources:
+      limits:
+        cpu: 250m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+
+# Redis - enabled with minimal resources
+redis:
+  enabled: true
+  auth:
+    enabled: false  # No auth in dev for simplicity
+  master:
+    persistence:
+      enabled: false
+    resources:
+      limits:
+        cpu: 100m
+        memory: 128Mi
+      requests:
+        cpu: 50m
+        memory: 64Mi

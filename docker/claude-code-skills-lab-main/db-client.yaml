@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: db-client
+spec:
+  containers:
+  - name: client
+    image: alpine
+    command: ["sh", "-c", "cat /etc/db-secrets/password && sleep 3600"]
+    volumeMounts:
+    - name: db-secrets
+      mountPath: /etc/db-secrets
+      readOnly: true
+  volumes:
+  - name: db-secrets
+    secret:
+      secretName: db-secrets
+  restartPolicy: Never

@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-settings-demo
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: app-settings-demo
+  template:
+    metadata:
+      labels:
+        app: app-settings-demo
+    spec:
+      containers:
+      - name: app
+        image: alpine
+        command: ["sh", "-c", "while true; do echo \"ENVIRONMENT=$ENVIRONMENT\"; sleep 10; done"]
+        envFrom:
+        - configMapRef:
+            name: app-settings

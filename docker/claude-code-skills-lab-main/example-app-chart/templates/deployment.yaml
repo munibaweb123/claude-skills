@@ -1,0 +1,103 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    # Use org-standards labels
+    {{- include "org-standards.labels.common" . | nindent 4 }}
+    {{- include "org-standards.labels.selector" . | nindent 4 }}
+    {{- include "org-standards.labels.cost" . | nindent 4 }}
+  annotations:
+    # Use org-standards annotations
+    {{- include "org-standards.annotations.observability" . | nindent 4 }}
+    {{- include "org-standards.annotations.security" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "org-standards.labels.selector" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "org-standards.labels.full" . | nindent 8 }}
+      annotations:
+        {{- include "org-standards.annotations.full" . | nindent 8 }}
+    spec:
+      # Use org-standards pod security context
+      securityContext:
+        {{- include "org-standards.securityContext.pod" . | nindent 8 }}
+
+      # Pod anti-affinity for high availability
+      {{- if .Values.affinity.podAntiAffinity.enabled }}
+      affinity:
+        {{- include "org-standards.affinity.podAntiAffinity" . | nindent 8 }}
+      {{- end }}
+
+      # Tolerations for spot instances, GPU nodes, etc.
+      {{- if .Values.tolerations }}
+      tolerations:
+        {{- include "org-standards.tolerations.custom" . | nindent 8 }}
+      {{- end }}
+
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+
+          # Use org-standards container security context
+          securityContext:
+            {{- include "org-standards.securityContext.container" . | nindent 12 }}
+
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+              protocol: TCP
+
+          # Use org-standards HTTP probes
+          livenessProbe:
+            {{- include "org-standards.probes.http" (dict
+              "path" .Values.healthCheck.liveness
+              "port" .Values.service.targetPort
+              "context" .
+            ) | nindent 12 }}
+
+          readinessProbe:
+            {{- include "org-standards.probes.http" (dict
+              "path" .Values.healthCheck.readiness
+              "port" .Values.service.targetPort
+              "context" .
+            ) | nindent 12 }}
+
+          # Use org-standards resource presets
+          resources:
+            {{- include "org-standards.resources" (dict
+              "size" .Values.resources.size
+              "context" .
+            ) | nindent 12 }}
+
+          env:
+            - name: APP_NAME
+              value: {{ .Chart.Name }}
+            - name: APP_VERSION
+              value: {{ .Chart.AppVersion | quote }}
+            - name: ENVIRONMENT
+              value: {{ .Values.environment }}
+            - name: LOG_FORMAT
+              value: {{ .Values.logging.format }}
+            - name: LOG_LEVEL
+              value: {{ .Values.logging.level }}
+
+          # Volume mounts for writable directories (since root is read-only)
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: cache
+              mountPath: /app/cache
+
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: cache
+          emptyDir: {}

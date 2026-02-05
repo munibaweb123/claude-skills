@@ -1,0 +1,142 @@
+{{/*
+Pre-Upgrade Database Migration Hook
+This Job runs before each Helm upgrade to apply database schema migrations.
+It uses Helm hooks with proper ordering and cleanup policies.
+*/}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "task-api-chart.fullname" . }}-db-migrate-{{ .Release.Revision }}
+  labels:
+    {{- include "task-api-chart.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migration
+  annotations:
+    # Hook annotations control when and how this Job runs
+    helm.sh/hook: pre-upgrade,pre-install
+    helm.sh/hook-weight: "-5"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  # Prevent parallel migration runs
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 300
+  template:
+    metadata:
+      name: {{ include "task-api-chart.fullname" . }}-db-migrate
+      labels:
+        {{- include "task-api-chart.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: migration
+    spec:
+      restartPolicy: Never
+
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      serviceAccountName: {{ include "task-api-chart.serviceAccountName" . }}
+
+      # Security context for migration job
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+
+      # Init container to wait for database
+      initContainers:
+        - name: wait-for-db
+          image: postgres:15-alpine
+          command:
+            - sh
+            - -c
+            - |
+              until pg_isready -h {{ include "task-api-chart.postgresql.host" . }} \
+                             -p {{ include "task-api-chart.postgresql.port" . }} \
+                             -U {{ include "task-api-chart.postgresql.username" . }}; do
+                echo "Waiting for PostgreSQL to be ready..."
+                sleep 2
+              done
+              echo "PostgreSQL is ready!"
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+
+      containers:
+        - name: db-migrate
+          image: {{ include "task-api-chart.image" . }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+
+          # Migration command - customize for your migration tool
+          command:
+            - sh
+            - -c
+            - |
+              echo "Starting database migration..."
+              echo "Database: {{ include "task-api-chart.postgresql.database" . }}"
+              echo "Host: {{ include "task-api-chart.postgresql.host" . }}"
+
+              # Run migrations (customize based on your tool)
+              # Examples:
+              # - Alembic: alembic upgrade head
+              # - Django: python manage.py migrate
+              # - Flyway: flyway migrate
+              # - Liquibase: liquibase update
+
+              # Example: Using Alembic
+              alembic upgrade head
+
+              echo "Migration completed successfully!"
+
+          env:
+            # Database connection from helpers
+            - name: DATABASE_HOST
+              value: {{ include "task-api-chart.postgresql.host" . | quote }}
+            - name: DATABASE_PORT
+              value: {{ include "task-api-chart.postgresql.port" . | quote }}
+            - name: DATABASE_USER
+              value: {{ include "task-api-chart.postgresql.username" . | quote }}
+            - name: DATABASE_NAME
+              value: {{ include "task-api-chart.postgresql.database" . | quote }}
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "task-api-chart.postgresql.secretName" . }}
+                  key: {{ include "task-api-chart.postgresql.secretKey" . }}
+
+            # Full connection URL
+            - name: DATABASE_URL
+              value: {{ include "task-api-chart.postgresql.url" . | quote }}
+
+            # Additional environment variables
+            {{- range .Values.env }}
+            - name: {{ .name }}
+              value: {{ .value | quote }}
+            {{- end }}
+
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+
+          # Resource limits for migration job
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+
+          {{- with .Values.volumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+
+      {{- with .Values.volumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

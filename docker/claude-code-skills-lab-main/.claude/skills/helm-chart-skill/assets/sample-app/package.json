@@ -1,0 +1,16 @@
+{
+  "name": "helm-sample-app",
+  "version": "1.0.0",
+  "description": "Sample application for Helm chart testing",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "express": "^4.18.0"
+  },
+  "keywords": ["helm", "kubernetes", "sample"],
+  "author": "Helm Chart Skill",
+  "license": "MIT"
+}

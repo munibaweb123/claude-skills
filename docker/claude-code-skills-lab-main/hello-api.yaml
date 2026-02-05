@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: hello-api
+  labels:
+    app: hello
+    version: v1
+spec:
+  containers:
+  - name: api
+    image: python:3.11-alpine
+    command: ["python", "-m", "http.server", "8000"]
+    ports:
+    - containerPort: 8000
+    resources:
+      requests:
+        memory: "32Mi"
+        cpu: "100m"
+      limits:
+        memory: "64Mi"
+        cpu: "200m"

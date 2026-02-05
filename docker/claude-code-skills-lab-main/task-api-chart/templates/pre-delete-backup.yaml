@@ -1,0 +1,94 @@
+{{/*
+Pre-Delete Backup Hook
+Creates a database backup before the application is deleted.
+Only runs if PostgreSQL is enabled (internal database).
+*/}}
+{{- if .Values.postgresql.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "task-api-chart.fullname" . }}-backup-{{ now | date "20060102-150405" }}
+  labels:
+    {{- include "task-api-chart.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backup
+  annotations:
+    # Run before deletion
+    helm.sh/hook: pre-delete
+    helm.sh/hook-weight: "-5"
+    helm.sh/hook-delete-policy: hook-succeeded
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 3600
+  activeDeadlineSeconds: 1800
+  template:
+    metadata:
+      name: {{ include "task-api-chart.fullname" . }}-backup
+      labels:
+        {{- include "task-api-chart.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: backup
+    spec:
+      restartPolicy: OnFailure
+
+      containers:
+        - name: backup
+          image: postgres:15-alpine
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+
+              echo "=== Pre-Delete Database Backup ==="
+              echo "Release: {{ .Release.Name }}"
+              echo "Namespace: {{ .Release.Namespace }}"
+              echo "Timestamp: $(date -Iseconds)"
+
+              # Database connection details
+              export PGHOST="{{ include "task-api-chart.postgresql.host" . }}"
+              export PGPORT="{{ include "task-api-chart.postgresql.port" . }}"
+              export PGUSER="{{ include "task-api-chart.postgresql.username" . }}"
+              export PGDATABASE="{{ include "task-api-chart.postgresql.database" . }}"
+              export PGPASSWORD="${DATABASE_PASSWORD}"
+
+              # Backup filename
+              BACKUP_FILE="/backup/{{ .Release.Name }}-$(date +%Y%m%d-%H%M%S).sql"
+
+              echo "Creating backup: ${BACKUP_FILE}"
+
+              # Create backup
+              if pg_dump --clean --if-exists --verbose > "${BACKUP_FILE}"; then
+                echo "✓ Backup created successfully"
+                ls -lh "${BACKUP_FILE}"
+
+                # Optional: Upload to S3/Cloud Storage
+                # aws s3 cp "${BACKUP_FILE}" "s3://backups/{{ .Release.Name }}/"
+
+                echo "=== Backup Complete ==="
+              else
+                echo "✗ Backup failed"
+                exit 1
+              fi
+
+          env:
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "task-api-chart.postgresql.secretName" . }}
+                  key: {{ include "task-api-chart.postgresql.secretKey" . }}
+
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+
+          volumeMounts:
+            - name: backup-volume
+              mountPath: /backup
+
+      volumes:
+        - name: backup-volume
+          emptyDir: {}
+{{- end }}

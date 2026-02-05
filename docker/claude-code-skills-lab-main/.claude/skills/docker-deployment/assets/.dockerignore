@@ -1,0 +1,123 @@
+# .dockerignore - Optimize Docker build context by excluding unnecessary files
+# This file significantly speeds up builds and reduces the build context sent to Docker daemon
+
+# Python cache and compiled files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+.ENV/
+
+# Distribution / packaging
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# Documentation
+*.md
+docs/
+README*
+LICENSE
+CHANGELOG*
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+.travis.yml
+Jenkinsfile
+azure-pipelines.yml
+
+# Environment files (should be passed at runtime, not baked in)
+.env
+.env.*
+*.env
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+
+# OS files
+Thumbs.db
+.DS_Store
+
+# Model files (should be mounted as volumes, not copied)
+models/
+*.pt
+*.pth
+*.h5
+*.onnx
+*.pkl
+*.joblib
+
+# Data files (should be mounted as volumes)
+data/
+*.csv
+*.json
+*.parquet
+
+# Scripts not needed in container
+scripts/
+tools/
+notebooks/
+*.ipynb
+
+# Configuration files for local development
+local_settings.py
+settings_local.py

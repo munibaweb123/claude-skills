@@ -1,0 +1,89 @@
+{{/*
+Post-Upgrade Health Check Hook
+Validates the deployment after upgrade completes.
+*/}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "task-api-chart.fullname" . }}-health-check-{{ .Release.Revision }}
+  labels:
+    {{- include "task-api-chart.labels" . | nindent 4 }}
+    app.kubernetes.io/component: health-check
+  annotations:
+    # Run after upgrade completes
+    helm.sh/hook: post-upgrade,post-install
+    helm.sh/hook-weight: "5"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 3
+  ttlSecondsAfterFinished: 600
+  activeDeadlineSeconds: 300
+  template:
+    metadata:
+      name: {{ include "task-api-chart.fullname" . }}-health-check
+      labels:
+        {{- include "task-api-chart.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: health-check
+    spec:
+      restartPolicy: OnFailure
+
+      serviceAccountName: {{ include "task-api-chart.serviceAccountName" . }}
+
+      containers:
+        - name: health-check
+          image: curlimages/curl:latest
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+
+              echo "=== Post-Upgrade Health Check ==="
+              echo "Release: {{ .Release.Name }}"
+              echo "Revision: {{ .Release.Revision }}"
+              echo "Namespace: {{ .Release.Namespace }}"
+
+              # Wait for service to be ready
+              echo "Waiting for service to be ready..."
+              sleep 10
+
+              # Health check endpoint
+              SERVICE_URL="http://{{ include "task-api-chart.fullname" . }}:{{ .Values.service.port }}"
+
+              # Test health endpoint
+              echo "Testing health endpoint: ${SERVICE_URL}/health"
+              if curl --fail --silent --show-error --max-time 10 "${SERVICE_URL}/health"; then
+                echo "✓ Health check passed"
+              else
+                echo "✗ Health check failed"
+                exit 1
+              fi
+
+              # Test readiness endpoint
+              echo "Testing readiness endpoint: ${SERVICE_URL}/ready"
+              if curl --fail --silent --show-error --max-time 10 "${SERVICE_URL}/ready"; then
+                echo "✓ Readiness check passed"
+              else
+                echo "✗ Readiness check failed"
+                exit 1
+              fi
+
+              # Test database connectivity (if enabled)
+              {{- if .Values.postgresql.enabled }}
+              echo "Testing database connectivity..."
+              if curl --fail --silent --show-error --max-time 10 "${SERVICE_URL}/health/db"; then
+                echo "✓ Database connection OK"
+              else
+                echo "⚠ Database connection check failed (non-critical)"
+              fi
+              {{- end }}
+
+              echo "=== All Health Checks Passed ==="
+
+          resources:
+            limits:
+              cpu: 100m
+              memory: 64Mi
+            requests:
+              cpu: 50m
+              memory: 32Mi

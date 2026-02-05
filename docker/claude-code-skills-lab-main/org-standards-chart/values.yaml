@@ -1,0 +1,98 @@
+# org-standards Library Chart Default Values
+#
+# These values provide defaults for the reusable templates.
+# Application charts can override these values.
+
+# Security defaults
+security:
+  # Pod security context
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+  # Container capabilities to add (if needed)
+  capabilities: []
+  # - NET_BIND_SERVICE
+
+  # Security profile
+  seccompProfile:
+    type: RuntimeDefault
+
+# Resource defaults
+resources:
+  # Default size: micro, small, medium, large, xlarge
+  size: medium
+
+  # Override specific resources if needed
+  limits: {}
+    # cpu: 500m
+    # memory: 512Mi
+  requests: {}
+    # cpu: 100m
+    # memory: 128Mi
+
+# Probe defaults
+probes:
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  successThreshold: 1
+  failureThreshold: 3
+
+# Cost attribution (required for production)
+cost:
+  center: ""
+  businessUnit: ""
+  spotEligible: false
+
+# Observability defaults
+metrics:
+  enabled: true
+  port: 8080
+  path: /metrics
+
+tracing:
+  enabled: true
+  jaeger: true
+
+logging:
+  format: json
+  level: info
+
+# Common labels to add to all resources
+commonLabels: {}
+  # team: backend
+  # project: api
+
+# Common annotations to add to all resources
+commonAnnotations: {}
+  # description: "My application"
+
+# Environment (dev, staging, production)
+environment: production
+
+# Network policy defaults
+networkPolicy:
+  enabled: false
+  allowSameNamespace: true
+  allowDNS: true
+  additionalEgress: []
+  additionalIngress: []
+
+# Affinity defaults
+affinity:
+  # Pod anti-affinity for high availability
+  podAntiAffinity:
+    enabled: false
+    topologyKey: kubernetes.io/hostname
+
+  # Node affinity
+  nodeAffinity:
+    enabled: false
+
+# Tolerations for spot instances, GPU nodes, etc.
+tolerations: []
+# - key: "spot"
+#   operator: "Equal"
+#   value: "true"
+#   effect: "NoSchedule"

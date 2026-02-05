@@ -1,0 +1,97 @@
+# syntax=docker/dockerfile:1
+# Multi-stage Dockerfile optimized for minimal image size using Alpine Linux
+# This template uses Alpine base images which are significantly smaller than Debian-based images
+# Alpine: ~50MB base | Slim: ~150MB base | Full: ~900MB base
+
+# ============================================================================
+# Stage 1: Builder - Install dependencies and build assets
+# ============================================================================
+FROM python:3.12-alpine AS builder
+
+# Set build-time environment variables to prevent Python from writing bytecode
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+# Install build dependencies required for compiling Python packages with C extensions
+# These are only needed during build and won't be in the final image
+RUN apk add --no-cache \
+    gcc \
+    musl-dev \
+    linux-headers \
+    g++ \
+    libffi-dev \
+    openssl-dev
+
+# Install UV package manager for 10-100x faster dependency installation compared to pip
+# UV is a Rust-based Python package installer that dramatically speeds up builds
+RUN pip install --no-cache-dir uv && \
+    pip cache purge
+
+# Copy only requirements file first to leverage Docker layer caching
+# This layer will only rebuild when requirements.txt changes, not when application code changes
+COPY requirements.txt .
+
+# Install Python dependencies using UV in system mode
+# --system: Install to system Python instead of virtual environment (since we're in Docker)
+# --no-cache: Don't cache downloads to minimize layer size
+RUN uv pip install --system --no-cache -r requirements.txt
+
+# Clean up unnecessary files to reduce layer size
+# Remove __pycache__ directories and .pyc files that aren't needed
+RUN find /usr/local -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true && \
+    find /usr/local -type f -name '*.pyc' -delete 2>/dev/null || true && \
+    find /usr/local -type f -name '*.pyo' -delete 2>/dev/null || true
+
+# ============================================================================
+# Stage 2: Runtime - Minimal production image
+# ============================================================================
+FROM python:3.12-alpine
+
+# Set runtime environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    TRANSFORMERS_CACHE=/app/models \
+    HF_HOME=/app/models
+
+WORKDIR /app
+
+# Install only runtime dependencies (no build tools needed in production)
+# curl is included for health checks
+RUN apk add --no-cache \
+    curl \
+    libstdc++ \
+    libgomp
+
+# Copy Python packages from builder stage - this is the key to multi-stage optimization
+# We only copy the installed packages, not the build tools or cache
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+
+# Create non-root user for security best practices
+# Running as non-root limits the impact of potential security vulnerabilities
+RUN adduser -D -h /app -s /bin/sh aiuser && \
+    chown -R aiuser:aiuser /app
+
+# Create necessary directories with proper permissions
+RUN mkdir -p /app/models /app/data && \
+    chown -R aiuser:aiuser /app/models /app/data
+
+# Switch to non-root user
+USER aiuser
+
+# Copy application code last (changes most frequently)
+# This leverages Docker's layer caching: if only application code changes, only this layer rebuilds
+COPY --chown=aiuser:aiuser . .
+
+# Expose port for the application
+EXPOSE 8000
+
+# Health check to ensure container is responding
+# This allows Docker and orchestration tools to detect unhealthy containers
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Default command - can be overridden at runtime
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

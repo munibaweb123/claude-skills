@@ -1,0 +1,253 @@
+# Helm Unittest Tests for Deployment
+# Install: helm plugin install https://github.com/helm-unittest/helm-unittest
+# Run: helm unittest .
+
+suite: test deployment
+templates:
+  - deployment.yaml
+tests:
+  # Test 1: Deployment metadata
+  - it: should have correct name and labels
+    set:
+      replicaCount: 3
+    asserts:
+      - isKind:
+          of: Deployment
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME-task-api
+      - equal:
+          path: metadata.labels["app.kubernetes.io/name"]
+          value: task-api
+      - equal:
+          path: metadata.labels["app.kubernetes.io/instance"]
+          value: RELEASE-NAME
+      - equal:
+          path: metadata.labels["app.kubernetes.io/managed-by"]
+          value: Helm
+
+  # Test 2: Replica count
+  - it: should set correct replica count
+    set:
+      replicaCount: 5
+      autoscaling.enabled: false
+    asserts:
+      - equal:
+          path: spec.replicas
+          value: 5
+
+  # Test 3: Replica count with autoscaling
+  - it: should not set replicas when autoscaling is enabled
+    set:
+      autoscaling.enabled: true
+    asserts:
+      - isNull:
+          path: spec.replicas
+
+  # Test 4: Image configuration
+  - it: should use correct image
+    set:
+      image.repository: myrepo/myapp
+      image.tag: v2.0.0
+      image.pullPolicy: Always
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].image
+          value: myrepo/myapp:v2.0.0
+      - equal:
+          path: spec.template.spec.containers[0].imagePullPolicy
+          value: Always
+
+  # Test 5: Image pull secrets
+  - it: should include image pull secrets
+    set:
+      imagePullSecrets:
+        - name: regcred
+        - name: dockerhub
+    asserts:
+      - equal:
+          path: spec.template.spec.imagePullSecrets[0].name
+          value: regcred
+      - equal:
+          path: spec.template.spec.imagePullSecrets[1].name
+          value: dockerhub
+
+  # Test 6: Service account
+  - it: should use correct service account
+    set:
+      serviceAccount.create: true
+      serviceAccount.name: "custom-sa"
+    asserts:
+      - equal:
+          path: spec.template.spec.serviceAccountName
+          value: custom-sa
+
+  # Test 7: Environment variables
+  - it: should include environment variables
+    set:
+      env:
+        - name: LOG_LEVEL
+          value: DEBUG
+        - name: APP_ENV
+          value: production
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: LOG_LEVEL
+            value: DEBUG
+      - contains:
+          path: spec.template.spec.containers[0].env
+          content:
+            name: APP_ENV
+            value: production
+
+  # Test 8: Resource limits
+  - it: should set resource limits and requests
+    set:
+      resources:
+        limits:
+          cpu: 1000m
+          memory: 1Gi
+        requests:
+          cpu: 500m
+          memory: 512Mi
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.cpu
+          value: 1000m
+      - equal:
+          path: spec.template.spec.containers[0].resources.limits.memory
+          value: 1Gi
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.cpu
+          value: 500m
+      - equal:
+          path: spec.template.spec.containers[0].resources.requests.memory
+          value: 512Mi
+
+  # Test 9: Pod annotations
+  - it: should include pod annotations
+    set:
+      podAnnotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+    asserts:
+      - equal:
+          path: spec.template.metadata.annotations["prometheus.io/scrape"]
+          value: "true"
+      - equal:
+          path: spec.template.metadata.annotations["prometheus.io/port"]
+          value: "8000"
+
+  # Test 10: Security context
+  - it: should set pod security context
+    set:
+      podSecurityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+    asserts:
+      - equal:
+          path: spec.template.spec.securityContext.runAsNonRoot
+          value: true
+      - equal:
+          path: spec.template.spec.securityContext.runAsUser
+          value: 1000
+      - equal:
+          path: spec.template.spec.securityContext.fsGroup
+          value: 1000
+
+  # Test 11: Container security context
+  - it: should set container security context
+    set:
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        runAsNonRoot: true
+        capabilities:
+          drop:
+            - ALL
+    asserts:
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.allowPrivilegeEscalation
+          value: false
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem
+          value: true
+      - equal:
+          path: spec.template.spec.containers[0].securityContext.runAsNonRoot
+          value: true
+      - contains:
+          path: spec.template.spec.containers[0].securityContext.capabilities.drop
+          content: ALL
+
+  # Test 12: Node selector
+  - it: should set node selector
+    set:
+      nodeSelector:
+        disktype: ssd
+        workload: production
+    asserts:
+      - equal:
+          path: spec.template.spec.nodeSelector.disktype
+          value: ssd
+      - equal:
+          path: spec.template.spec.nodeSelector.workload
+          value: production
+
+  # Test 13: Tolerations
+  - it: should set tolerations
+    set:
+      tolerations:
+        - key: "key1"
+          operator: "Equal"
+          value: "value1"
+          effect: "NoSchedule"
+    asserts:
+      - contains:
+          path: spec.template.spec.tolerations
+          content:
+            key: "key1"
+            operator: "Equal"
+            value: "value1"
+            effect: "NoSchedule"
+
+  # Test 14: Affinity rules
+  - it: should set affinity rules
+    set:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - node1
+    asserts:
+      - isNotNull:
+          path: spec.template.spec.affinity
+      - isNotNull:
+          path: spec.template.spec.affinity.nodeAffinity
+
+  # Test 15: Volumes and volume mounts
+  - it: should mount volumes
+    set:
+      volumes:
+        - name: cache
+          emptyDir: {}
+      volumeMounts:
+        - name: cache
+          mountPath: /cache
+    asserts:
+      - contains:
+          path: spec.template.spec.volumes
+          content:
+            name: cache
+            emptyDir: {}
+      - contains:
+          path: spec.template.spec.containers[0].volumeMounts
+          content:
+            name: cache
+            mountPath: /cache

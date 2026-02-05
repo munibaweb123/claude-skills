@@ -1,0 +1,103 @@
+# syntax=docker/dockerfile:1
+# Multi-stage Dockerfile optimized for AI/ML workloads using Debian Slim
+# This template uses Debian Slim which provides better compatibility than Alpine
+# Use this when you need better package compatibility or glibc-based libraries
+
+# ============================================================================
+# Stage 1: Builder - Install dependencies and build assets
+# ============================================================================
+FROM python:3.12-slim AS builder
+
+# Set build-time environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    DEBIAN_FRONTEND=noninteractive
+
+WORKDIR /app
+
+# Install build dependencies required for compiling Python packages
+# These are only needed during build and won't be in the final image
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    build-essential \
+    libffi-dev \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install UV package manager for 10-100x faster dependency installation compared to pip
+# UV is a Rust-based Python package installer that dramatically speeds up builds
+RUN pip install --no-cache-dir uv && \
+    pip cache purge
+
+# Copy only requirements file first to leverage Docker layer caching
+# This layer will only rebuild when requirements.txt changes, not when application code changes
+COPY requirements.txt .
+
+# Install Python dependencies using UV in system mode
+# --system: Install to system Python instead of virtual environment (since we're in Docker)
+# --no-cache: Don't cache downloads to minimize layer size
+RUN uv pip install --system --no-cache -r requirements.txt
+
+# Clean up unnecessary files to reduce layer size
+# Remove __pycache__ directories, .pyc files, and test files that aren't needed in production
+RUN find /usr/local -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true && \
+    find /usr/local -type f -name '*.pyc' -delete 2>/dev/null || true && \
+    find /usr/local -type f -name '*.pyo' -delete 2>/dev/null || true && \
+    find /usr/local -name 'tests' -type d -exec rm -rf {} + 2>/dev/null || true && \
+    find /usr/local -name '*.dist-info' -type d -exec sh -c 'rm -rf {}/RECORD {}/INSTALLER' \; 2>/dev/null || true
+
+# ============================================================================
+# Stage 2: Runtime - Minimal production image
+# ============================================================================
+FROM python:3.12-slim
+
+# Set runtime environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    TRANSFORMERS_CACHE=/app/models \
+    HF_HOME=/app/models \
+    DEBIAN_FRONTEND=noninteractive
+
+WORKDIR /app
+
+# Install only runtime dependencies (no build tools needed in production)
+# Keep the list minimal - only what's actually needed to run the application
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    ca-certificates \
+    libgomp1 \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Copy Python packages from builder stage - this is the key to multi-stage optimization
+# We only copy the installed packages, not the build tools or cache
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+
+# Create non-root user for security best practices
+# Running as non-root limits the impact of potential security vulnerabilities
+RUN useradd --create-home --shell /bin/bash aiuser && \
+    chown -R aiuser:aiuser /app
+
+# Create necessary directories with proper permissions
+RUN mkdir -p /app/models /app/data && \
+    chown -R aiuser:aiuser /app/models /app/data
+
+# Switch to non-root user
+USER aiuser
+
+# Copy application code last (changes most frequently)
+# This leverages Docker's layer caching: if only application code changes, only this layer rebuilds
+COPY --chown=aiuser:aiuser . .
+
+# Expose port for the application
+EXPOSE 8000
+
+# Health check to ensure container is responding
+# This allows Docker and orchestration tools to detect unhealthy containers
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Default command - can be overridden at runtime
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

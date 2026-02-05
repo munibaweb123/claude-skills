@@ -1,0 +1,262 @@
+# Default values for task-api.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 3
+
+image:
+  repository: your-registry/task-api
+  pullPolicy: Always
+  tag: "v1.0.0"
+
+imagePullSecrets:
+  - name: registry-secret
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Automatically mount a ServiceAccount's API credentials?
+  automount: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+service:
+  type: ClusterIP
+  port: 8000
+  targetPort: 8000
+
+ingress:
+  enabled: false
+  className: "nginx"
+
+  # ---- Multi-Path Routing ----
+  # Each path can route to a different backend service
+  hosts:
+    - host: api.company.com
+      paths:
+        # Default: routes to this chart's service
+        - path: /api/v1/tasks
+          pathType: Prefix
+
+        # Multi-path: route to different backend services
+        - path: /api/v1/users
+          pathType: Prefix
+          serviceName: user-service
+          servicePort: 8080
+
+        - path: /api/v1/auth
+          pathType: Prefix
+          serviceName: auth-service
+          servicePort: 8080
+
+        - path: /ws
+          pathType: Prefix
+          serviceName: websocket-service
+          servicePort: 9090
+
+        - path: /health
+          pathType: Exact
+
+    - host: admin.company.com
+      paths:
+        - path: /
+          pathType: Prefix
+          serviceName: admin-dashboard
+          servicePort: 3000
+
+  # ---- TLS ----
+  tls:
+    - secretName: api-tls-secret
+      hosts:
+        - api.company.com
+    - secretName: admin-tls-secret
+      hosts:
+        - admin.company.com
+
+  # ---- SSL / HSTS ----
+  forceSSL: true
+  hsts: true
+  hstsMaxAge: "31536000"
+
+  # ---- Rate Limiting ----
+  rateLimit:
+    rps: "20"         # Requests per second
+    rpm: "600"        # Requests per minute
+    burstMultiplier: "5"
+    connections: "10"
+
+  # ---- CORS ----
+  cors:
+    allowOrigin: "https://app.company.com, https://admin.company.com"
+    allowMethods: "GET, POST, PUT, DELETE, PATCH, OPTIONS"
+    allowHeaders: "Authorization, Content-Type, Accept, X-Request-ID"
+    maxAge: "7200"
+    allowCredentials: "true"
+
+  # ---- Body Size / Timeouts ----
+  bodySize: "50m"
+  timeouts:
+    connect: "60"
+    send: "120"
+    read: "120"
+
+  # ---- Websocket Support ----
+  websocket: true
+
+  # ---- Security Headers ----
+  securityHeaders: true
+
+  # ---- Custom Error Pages ----
+  # customErrors:
+  #   codes: "404,500,502,503"
+  #   backend: error-pages-service
+
+  # ---- Default Backend (fallback for unmatched paths) ----
+  # defaultBackend:
+  #   serviceName: default-backend
+  #   servicePort: 8080
+
+  # ---- Canary Deployment ----
+  canary:
+    enabled: false
+    # weight: "20"           # 20% traffic to canary
+    # header: "X-Canary"     # Route by header
+    # headerValue: "always"
+    # cookie: "canary"       # Route by cookie
+    # servicePort: 8000
+
+  # ---- Additional Annotations ----
+  annotations: {}
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+    # nginx.ingress.kubernetes.io/auth-url: "https://auth.company.com/verify"
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 1Gi
+  requests:
+    cpu: 250m
+    memory: 512Mi
+
+env:
+  - name: DATABASE_URL
+    value: "postgresql://localhost:5432/tasks"
+  - name: LOG_LEVEL
+    value: "INFO"
+  - name: API_TIMEOUT
+    value: "30"
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 100
+  targetCPUUtilizationPercentage: 80
+  # targetMemoryUtilizationPercentage: 80
+
+# Additional volumes on the output Deployment definition.
+volumes: []
+# - name: foo
+#   secret:
+#     secretName: mysecret
+#     optional: false
+
+# Additional volumeMounts on the output Deployment definition.
+volumeMounts: []
+# - name: foo
+#   mountPath: "/etc/foo"
+#   readOnly: true
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+# =============================================================================
+# POSTGRESQL DEPENDENCY
+# =============================================================================
+# PostgreSQL database for persistent storage
+# Disable to use external database
+postgresql:
+  enabled: true
+  auth:
+    username: taskapi
+    password: changeme123
+    database: tasks
+  primary:
+    persistence:
+      enabled: true
+      size: 8Gi
+    resources:
+      limits:
+        cpu: 500m
+        memory: 512Mi
+      requests:
+        cpu: 250m
+        memory: 256Mi
+  # Connection details
+  service:
+    ports:
+      postgresql: 5432
+
+# =============================================================================
+# REDIS DEPENDENCY
+# =============================================================================
+# Redis for caching and session storage
+# Disable to use external Redis or no caching
+redis:
+  enabled: true
+  auth:
+    enabled: true
+    password: changeme456
+  master:
+    persistence:
+      enabled: false  # Volatile cache by default
+    resources:
+      limits:
+        cpu: 250m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+  # Connection details
+  service:
+    ports:
+      redis: 6379
+
+# =============================================================================
+# EXTERNAL SERVICES (when dependencies are disabled)
+# =============================================================================
+# External database configuration (used when postgresql.enabled=false)
+externalDatabase:
+  host: ""
+  port: 5432
+  username: ""
+  password: ""
+  database: ""
+
+# External Redis configuration (used when redis.enabled=false)
+externalRedis:
+  host: ""
+  port: 6379
+  password: ""

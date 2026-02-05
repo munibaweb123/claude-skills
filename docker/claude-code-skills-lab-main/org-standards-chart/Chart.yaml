@@ -1,0 +1,25 @@
+apiVersion: v2
+name: org-standards
+description: "Reusable templates and organizational standards for Helm charts"
+type: library
+version: 1.0.0
+
+maintainers:
+  - name: "Platform Engineering Team"
+    email: "platform@company.com"
+
+keywords:
+  - library
+  - standards
+  - templates
+  - security
+  - compliance
+
+home: https://github.com/company/helm-charts
+sources:
+  - https://github.com/company/helm-charts/tree/main/org-standards
+
+annotations:
+  category: "Library"
+  org.company/purpose: "Organizational standards and reusable templates"
+  org.company/compliance: "SOC2, PCI-DSS, CIS Kubernetes Benchmark"

@@ -1,0 +1,98 @@
+{{/*
+Helm Test Hook
+Runs when 'helm test' command is executed to validate the deployment.
+*/}}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "task-api-chart.fullname" . }}-test-connection
+  labels:
+    {{- include "task-api-chart.labels" . | nindent 4 }}
+    app.kubernetes.io/component: test
+  annotations:
+    # Test hook - runs with 'helm test'
+    helm.sh/hook: test
+    helm.sh/hook-delete-policy: hook-succeeded
+spec:
+  restartPolicy: Never
+
+  containers:
+    - name: test-api
+      image: curlimages/curl:latest
+      resources:
+        limits:
+          cpu: 100m
+          memory: 64Mi
+        requests:
+          cpu: 50m
+          memory: 32Mi
+      command:
+        - sh
+        - -c
+        - |
+          set -e
+
+          echo "=== Testing Task API Deployment ==="
+          echo "Release: {{ .Release.Name }}"
+          echo "Namespace: {{ .Release.Namespace }}"
+
+          SERVICE_URL="http://{{ include "task-api-chart.fullname" . }}:{{ .Values.service.port }}"
+
+          # Test 1: Health endpoint
+          echo "Test 1: Health endpoint"
+          if curl --fail --silent --show-error --max-time 30 "${SERVICE_URL}/health"; then
+            echo "✓ Health endpoint accessible"
+          else
+            echo "✗ Health endpoint failed"
+            exit 1
+          fi
+
+          # Test 2: Readiness endpoint
+          echo "Test 2: Readiness endpoint"
+          if curl --fail --silent --show-error --max-time 30 "${SERVICE_URL}/ready"; then
+            echo "✓ Readiness endpoint accessible"
+          else
+            echo "✗ Readiness endpoint failed"
+            exit 1
+          fi
+
+          # Test 3: API root
+          echo "Test 3: API root endpoint"
+          if curl --fail --silent --show-error --max-time 30 "${SERVICE_URL}/"; then
+            echo "✓ API root accessible"
+          else
+            echo "✗ API root failed"
+            exit 1
+          fi
+
+          {{- if .Values.postgresql.enabled }}
+          # Test 4: Database connectivity
+          echo "Test 4: Database connectivity"
+          if curl --fail --silent --show-error --max-time 30 "${SERVICE_URL}/health/db"; then
+            echo "✓ Database connection OK"
+          else
+            echo "✗ Database connection failed"
+            exit 1
+          fi
+          {{- end }}
+
+          {{- if .Values.redis.enabled }}
+          # Test 5: Redis connectivity
+          echo "Test 5: Redis connectivity"
+          if curl --fail --silent --show-error --max-time 30 "${SERVICE_URL}/health/redis"; then
+            echo "✓ Redis connection OK"
+          else
+            echo "✗ Redis connection failed"
+            exit 1
+          fi
+          {{- end }}
+
+          echo "=== All Tests Passed ==="
+
+      resources:
+        limits:
+          cpu: 100m
+          memory: 64Mi
+        requests:
+          cpu: 50m
+          memory: 32Mi

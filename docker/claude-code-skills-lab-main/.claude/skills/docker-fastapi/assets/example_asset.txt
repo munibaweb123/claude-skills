@@ -1,0 +1,14 @@
+# Docker FastAPI Asset Files
+
+This directory contains Docker-related asset files for Python/FastAPI applications:
+
+## Available Templates
+
+- Dockerfile.dev: Development Dockerfile with hot-reloading
+- Dockerfile.prod: Production multi-stage Dockerfile
+- docker-compose.dev.yml: Development docker-compose with database
+- docker-compose.prod.yml: Production docker-compose with scaling
+
+## Usage
+
+These templates can be copied to your project directory and customized as needed for your specific FastAPI application requirements.

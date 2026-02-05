@@ -1,0 +1,35 @@
+[skill]
+name = "docker-deployment"
+description = "Docker Deployment skill for validating Docker Desktop setup, configuring memory/CPU allocation for AI services, multi-stage Dockerfile optimization with UV package manager, and debugging failed container startups"
+version = "3.0.0"
+author = "Claude Code"
+
+[commands]
+# Setup and Configuration
+validate = { description = "Validate Docker Desktop setup for AI services", command = "python3 docker_deployment_helper.py validate" }
+recommend = { description = "Get resource recommendations for AI services", command = "python3 docker_deployment_helper.py recommend" }
+configure = { description = "Get configuration guidance for Docker Desktop", command = "python3 docker_deployment_helper.py configure" }
+generate-compose = { description = "Generate AI-optimized docker-compose file", command = "python3 docker_deployment_helper.py generate-compose" }
+
+# Docker Concepts
+explain = { description = "Explain Docker concepts: images-vs-containers, layer-architecture, copy-on-write, restart-policies", command = "python3 docker_deployment_helper.py explain" }
+explain-images = { description = "Explain images vs containers relationship", command = "python3 docker_deployment_helper.py explain --topic images-vs-containers" }
+explain-layers = { description = "Explain Docker layer architecture", command = "python3 docker_deployment_helper.py explain --topic layer-architecture" }
+explain-cow = { description = "Explain copy-on-write mechanism", command = "python3 docker_deployment_helper.py explain --topic copy-on-write" }
+explain-restart = { description = "Explain restart policies and configuration", command = "python3 docker_deployment_helper.py explain --topic restart-policies" }
+explain-all = { description = "Explain all Docker core concepts", command = "python3 docker_deployment_helper.py explain --topic all" }
+
+# Debugging and Troubleshooting
+debug-guide = { description = "Show comprehensive container debugging guide", command = "python3 docker_deployment_helper.py debug-guide" }
+diagnose = { description = "Diagnose a failed or problematic container (requires container name)", command = "python3 docker_deployment_helper.py diagnose" }
+logs = { description = "View container logs (requires container name)", command = "python3 docker_deployment_helper.py logs" }
+inspect = { description = "Inspect container configuration (requires container name)", command = "python3 docker_deployment_helper.py inspect" }
+exec = { description = "Execute command in running container (requires container name)", command = "python3 docker_deployment_helper.py exec" }
+
+# Image Optimization
+optimize-guide = { description = "Show comprehensive Docker image optimization guide", command = "python3 docker_deployment_helper.py optimize-guide" }
+generate-dockerignore = { description = "Generate .dockerignore file for build context optimization", command = "python3 docker_deployment_helper.py generate-dockerignore" }
+copy-dockerfile-alpine = { description = "Copy optimized Alpine-based multi-stage Dockerfile", command = "python3 docker_deployment_helper.py copy-dockerfile --variant alpine" }
+copy-dockerfile-slim = { description = "Copy optimized Debian Slim-based multi-stage Dockerfile", command = "python3 docker_deployment_helper.py copy-dockerfile --variant slim" }
+copy-dockerfile-gunicorn = { description = "Copy production Dockerfile with Gunicorn workers", command = "python3 docker_deployment_helper.py copy-dockerfile --variant gunicorn" }
+copy-dockerfile-basic = { description = "Copy basic single-stage Dockerfile", command = "python3 docker_deployment_helper.py copy-dockerfile --variant basic" }

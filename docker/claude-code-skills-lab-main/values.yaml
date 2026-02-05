@@ -1,0 +1,8 @@
+# values.yaml
+tier: production
+replicaCount:
+  dev: 1
+  staging: 2
+  production: 3
+
+  

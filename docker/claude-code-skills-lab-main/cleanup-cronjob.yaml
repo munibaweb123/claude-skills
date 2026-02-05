@@ -1,0 +1,63 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: database-cleanup
+  labels:
+    app: maintenance
+spec:
+  schedule: "0 2 * * *"          # Run daily at 2 AM
+  timeZone: "America/New_York"   # Timezone (K8s 1.27+)
+  concurrencyPolicy: Forbid      # Don't run if previous still running
+  successfulJobsHistoryLimit: 3  # Keep last 3 successful jobs
+  failedJobsHistoryLimit: 1      # Keep last 1 failed job
+  startingDeadlineSeconds: 200   # Skip if can't start within 200s of scheduled time
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 3600  # Timeout after 1 hour
+      template:
+        metadata:
+          labels:
+            app: maintenance
+            task: db-cleanup
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: cleanup
+            image: postgres:16-alpine
+            command: ["/bin/sh", "-c"]
+            args:
+              - |
+                echo "Starting database cleanup at $(date)"
+                # Connect and run cleanup queries
+                psql -h $DB_HOST -U $DB_USER -d $DB_NAME -c "
+                  DELETE FROM logs WHERE created_at < NOW() - INTERVAL '30 days';
+                  DELETE FROM sessions WHERE expires_at < NOW();
+                  VACUUM ANALYZE;
+                "
+                echo "Cleanup completed at $(date)"
+            env:
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: host
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: username
+            - name: DB_NAME
+              value: "production"
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-credentials
+                  key: password
+            resources:
+              requests:
+                cpu: "100m"
+                memory: "128Mi"
+              limits:
+                cpu: "500m"
+                memory: "512Mi"

@@ -1,0 +1,49 @@
+# Dockerfile for AI Services
+# Optimized for AI/ML workloads with appropriate resource allocation
+
+FROM python:3.11-slim
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    TRANSFORMERS_CACHE=/app/models \
+    HF_HOME=/app/models
+
+# Install system dependencies for AI/ML
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    git \
+    curl \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Install Python dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt
+
+# Create non-root user for security
+RUN useradd --create-home --shell /bin/bash aiuser && \
+    chown -R aiuser:aiuser /app
+USER aiuser
+
+# Create directories for models and data with proper permissions
+RUN mkdir -p /app/models /app/data && \
+    chmod 755 /app/models /app/data
+
+# Copy application code
+COPY --chown=aiuser:aiuser . .
+
+# Expose port
+EXPOSE 8000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:8000/health || exit 1
+
+# Default command
+CMD ["python", "app.py"]

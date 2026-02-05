@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: memory-leak-app
+spec:
+  containers:
+  - name: app
+    image: python:3.11-slim
+    command: ["python", "-c"]
+    args:
+      - |
+        import time
+        memory = []
+        while True:
+            # Only keep last 5 allocations (500MB max)
+            if len(memory) > 5:
+                memory.pop(0)
+            memory.append(bytearray(50 * 1024 * 1024))
+            time.sleep(0.1)
+    resources:
+      requests:
+        memory: "256Mi"
+        cpu: "100m"
+      limits:
+        memory: "256Mi"    # Limit memory to 256Mi
+        cpu: "500m"
+  restartPolicy: Always

@@ -1,0 +1,30 @@
+# Development Dockerfile for FastAPI
+# This Dockerfile is optimized for development with hot-reloading capabilities
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies needed for building Python packages during development
+RUN apt-get update && apt-get install -y \
+    gcc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install UV package manager for significantly faster dependency installation compared to pip
+RUN pip install --no-cache-dir uv
+
+# Copy requirements file first to leverage Docker layer caching
+# This layer will only rebuild when requirements.txt changes, not when application code changes
+COPY requirements.txt .
+
+# Use UV to install dependencies for faster installation during development
+RUN uv pip install --system --no-cache --upgrade -r requirements.txt
+
+# Copy application code last (changes most frequently)
+# This leverages Docker's layer caching: if only application code changes, only this layer rebuilds
+COPY . .
+
+EXPOSE 8000
+
+# Development command with auto-reload for rapid development cycles
+# Binding to 0.0.0.0 allows external connections to the development server
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
