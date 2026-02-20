@@ -1,4 +1,0 @@
-FROM python:3.12-slim
-WORKDIR /app
-COPY broken_main.py .
-CMD ["python", "broken_main.py"]

@@ -1,4 +1,0 @@
-Flask==2.3.3
-dapr==1.11.0
-dapr-ext-grpc==1.11.0
-requests==2.31.0
